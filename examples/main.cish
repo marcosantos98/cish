@@ -1,0 +1,5 @@
+import "std:io"
+
+int main(char*[] args) {
+    return 0;
+}
