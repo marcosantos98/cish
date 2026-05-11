@@ -26,6 +26,7 @@ typedef enum {
     TT_CLOSE_CURLY,
     TT_ASTERISK,
     TT_SEMICOLON,
+    TT_COMMA,
 } TokenType;
 
 typedef struct {
@@ -142,6 +143,21 @@ bool tokenizer_lexme(Tokenizer *tokenizer, char *contents, size_t len_contents) 
             row += 1;
         } break;
         case '\t': {
+            cursor += 1;
+            col += 1;
+        } break;
+        case ',': {
+            Token token = {
+                .lexme = (char *)(contents + cursor),
+                .lexme_len = 1,
+                .type = TT_COMMA,
+                .loc = {
+                    .filename = "",
+                    .col = col,
+                    .row = row,
+                },
+            };
+            da_append(&tokenizer->tokens, token);
             cursor += 1;
             col += 1;
         } break;
