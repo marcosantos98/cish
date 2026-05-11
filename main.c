@@ -304,6 +304,10 @@ bool tokenizer_lexme(Tokenizer *tokenizer, char *contents, size_t len_contents) 
 typedef enum {
     NT_FN_DECL,
     NT_BLOCK,
+    NT_EXPR_STMT,
+    NT_LIT_STRING,
+    NT_IDENT_EXPR,
+    NT_FN_CALL_EXPR,
 } NodeType;
 
 typedef struct Node Node;
@@ -332,6 +336,30 @@ typedef struct {
     Nodes nodes;
 } BlockStmt;
 
+typedef struct {
+    Node *base;
+    Node *expr;
+} ExprStmt;
+
+typedef struct {
+    Node *base;
+    char *lit;
+    int lit_len;
+} LitStringExpr;
+
+typedef struct {
+    Node *base;
+    char *lit;
+    int lit_len;
+} IdentExpr;
+
+typedef struct {
+    Node *base;
+    char *name;
+    int name_len;
+    Nodes args;
+} FnCallExpr;
+
 struct Node {
     NodeType type;
     TokenLoc start;
@@ -339,6 +367,10 @@ struct Node {
     union {
         FnDeclStmt *fn_decl_stmt;
         BlockStmt *block_stmt;
+        ExprStmt *expr_stmt;
+        LitStringExpr *lit_string_expr;
+        IdentExpr *ident_expr;
+        FnCallExpr *fn_call_expr;
     };
 };
 
@@ -382,6 +414,9 @@ bool expect_and_get(Parser *p, TokenType tt, Token *token) {
     return true;
 }
 
+ParseResult parser_parse_stmt(Parser *);
+ParseResult parser_parse_expr(Parser *);
+
 ParseResult parser_parse_block_stmt(Parser *p) {
     Token start;
     if (!expect_and_get(p, TT_OPEN_CURLY, &start)) {
@@ -389,7 +424,13 @@ ParseResult parser_parse_block_stmt(Parser *p) {
         return INVALID_RES;
     }
 
-    // fixme: actually parse the body;
+    Nodes stmts = {0};
+    while (parser_get_token(p).type != TT_CLOSE_CURLY) {
+        ParseResult res = parser_parse_stmt(p);
+        if (!res.ok)
+            return INVALID_RES;
+        da_append(&stmts, res.node);
+    }
 
     Token end;
     if (!expect_and_get(p, TT_CLOSE_CURLY, &end)) {
@@ -403,9 +444,145 @@ ParseResult parser_parse_block_stmt(Parser *p) {
     node->end = end.loc;
     BlockStmt *stmt = temp_alloc(sizeof(BlockStmt));
     stmt->base = node;
-    stmt->nodes = (Nodes){0};
+    stmt->nodes = stmts;
     node->block_stmt = stmt;
 
+    return PARSE_SUCC(node);
+}
+
+ParseResult parser_parse_lit_string_expr(Parser *p) {
+    Token start;
+    if (!expect_and_get(p, TT_STRING, &start)) {
+        printf("expect string literal when parse a string literal.\n");
+        return INVALID_RES;
+    }
+
+    Node *node = temp_alloc(sizeof(Node));
+    node->type = NT_LIT_STRING;
+    node->start = start.loc;
+    node->end = (TokenLoc){node->start.col + start.lexme_len, node->start.row, ""};
+    LitStringExpr *lit = temp_alloc(sizeof(LitStringExpr));
+    lit->base = node;
+    lit->lit = start.lexme;
+    lit->lit_len = start.lexme_len;
+    node->lit_string_expr = lit;
+    return PARSE_SUCC(node);
+}
+
+ParseResult parser_parse_ident_expr(Parser *p) {
+    Token start;
+    if (!expect_and_get(p, TT_IDENT, &start)) {
+        printf("expected identifier\n");
+        return INVALID_RES;
+    }
+
+    Node *node = temp_alloc(sizeof(Node));
+    node->type = NT_IDENT_EXPR;
+    node->start = start.loc;
+    node->end = (TokenLoc){node->start.col + start.lexme_len, node->start.row, ""};
+    IdentExpr *expr = temp_alloc(sizeof(IdentExpr));
+    expr->base = node;
+    expr->lit = start.lexme;
+    expr->lit_len = start.lexme_len;
+    node->ident_expr = expr;
+    return PARSE_SUCC(node);
+}
+
+ParseResult parser_parse_primary(Parser *p) {
+    Token token = parser_get_token(p);
+    switch (token.type) {
+    case TT_STRING:
+        return parser_parse_lit_string_expr(p);
+    case TT_IDENT:
+        return parser_parse_ident_expr(p);
+    default:
+        printf("invalid token as primary: `%.*s`\n", token.lexme_len, token.lexme);
+        return INVALID_RES;
+    }
+    return INVALID_RES;
+}
+
+ParseResult parser_parse_fn_call_expr(Parser *p, Node *lhs) {
+    if (!expect(p, TT_OPEN_PAREN)) {
+        Token token = parser_get_token(p);
+        printf("expected `(` got `%.*s`\n", token.lexme_len, token.lexme);
+        return INVALID_RES;
+    }
+
+    Nodes args = {0};
+    while (parser_get_token(p).type != TT_CLOSE_PAREN) {
+        ParseResult res = parser_parse_expr(p);
+        if (!res.ok)
+            return INVALID_RES;
+        da_append(&args, res.node);
+        if (parser_get_token(p).type == TT_COMMA)
+            expect(p, TT_COMMA);
+    }
+
+    Token end;
+    if (!expect_and_get(p, TT_CLOSE_PAREN, &end)) {
+        printf("expected `(` got `%.*s`\n", end.lexme_len, end.lexme);
+        return INVALID_RES;
+    }
+
+    Node *node = temp_alloc(sizeof(Node));
+    node->type = NT_FN_CALL_EXPR;
+    node->start = lhs->start;
+    node->end = end.loc;
+    FnCallExpr *expr = temp_alloc(sizeof(FnCallExpr));
+    expr->base = node;
+    assert(lhs->type == NT_IDENT_EXPR);
+    expr->name = lhs->ident_expr->lit;
+    expr->name_len = lhs->ident_expr->lit_len;
+    expr->args = args;
+    node->fn_call_expr = expr;
+    return PARSE_SUCC(node);
+}
+
+ParseResult parser_parse_expr(Parser *p) {
+
+    ParseResult res = parser_parse_primary(p);
+    if (!res.ok) {
+        return INVALID_RES;
+    }
+
+    Node *lhs = res.node;
+
+    Token token = parser_get_token(p);
+    switch (token.type) {
+    case TT_OPEN_PAREN: {
+        res = parser_parse_fn_call_expr(p, lhs);
+        if (!res.ok)
+            return INVALID_RES;
+        lhs = res.node;
+    } break;
+    default:
+        break;
+    }
+
+    // fixme: this is breakable when something like binops are implemented
+    return PARSE_SUCC(lhs);
+}
+
+ParseResult parser_parse_expr_stmt(Parser *p) {
+    ParseResult res = parser_parse_expr(p);
+    if (!res.ok)
+        return INVALID_RES;
+
+    Token end;
+    if (!expect_and_get(p, TT_SEMICOLON, &end)) {
+        printf("expected `;` but got `%.*s`\n", end.lexme_len, end.lexme);
+        return INVALID_RES;
+    }
+
+    Node *node = temp_alloc(sizeof(Node));
+    node->type = NT_EXPR_STMT;
+    node->start = res.node->start;
+    node->end = end.loc;
+    ExprStmt *stmt = temp_alloc(sizeof(ExprStmt));
+    stmt->base = node;
+    stmt->expr = res.node;
+    node->expr_stmt = stmt;
     return PARSE_SUCC(node);
 }
 
@@ -416,8 +593,7 @@ ParseResult parser_parse_stmt(Parser *p) {
         return parser_parse_block_stmt(p);
     } break;
     default:
-        printf("Invalid token\n");
-        return INVALID_RES;
+        return parser_parse_expr_stmt(p);
     }
 
     return INVALID_RES;
@@ -509,7 +685,29 @@ void print_node(Node *node) {
         print_node(stmt->block);
     } break;
     case NT_BLOCK: {
+        BlockStmt *block = node->block_stmt;
         printf("BlockStmt:\n");
+        for (int i = 0; i < block->nodes.count; i += 1) {
+            print_node(block->nodes.items[i]);
+        }
+    } break;
+    case NT_EXPR_STMT: {
+        print_node(node->expr_stmt->expr);
+    } break;
+    case NT_LIT_STRING: {
+        LitStringExpr *expr = node->lit_string_expr;
+        printf("LitStringExpr: `%.*s`\n", expr->lit_len, expr->lit);
+    } break;
+    case NT_IDENT_EXPR: {
+        IdentExpr *expr = node->ident_expr;
+        printf("IdentExpr: `%.*s`\n", expr->lit_len, expr->lit);
+    } break;
+    case NT_FN_CALL_EXPR: {
+        FnCallExpr *expr = node->fn_call_expr;
+        printf("FnCallExpr: `%.*s`\n", expr->name_len, expr->name);
+        for (int i = 0; i < expr->args.count; i += 1) {
+            print_node(expr->args.items[i]);
+        }
     } break;
     }
 }
