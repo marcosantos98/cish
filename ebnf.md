@@ -1,4 +1,5 @@
 IDENT = [a-z]
+LITERAL_STR = '"' [a-z] '"'
 
 TOP_LEVEL_STMT = FN_DECL_STMT;
 
@@ -7,6 +8,17 @@ TYPE_EXPR = IDENT, { '*', '[]' };
 FN_DECL_STMT = TYPE_EXPR IDENT '(' [FN_PARAM] ')' BLOCK_STMT;
 FN_PARAM = TYPE_EXPR IDENT
 
-STMT = ...;
+STMT = BLOCK_STMT
+     | EXPR_STMT;
 
 BLOCK_STMT = '{' [ STMT ] '}';
+
+EXPR_STMT = EXPR ';'
+
+FN_CALL_EXPR = IDENT '(' [ EXPR ] ')'
+
+EXPR = IDENT
+     | LITERAL_STR
+     | FN_CALL_EXPR;
+
+POSTFIX = '(';
