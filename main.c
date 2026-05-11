@@ -26,12 +26,11 @@ typedef enum {
     TT_CLOSE_CURLY,
     TT_ASTERISK,
     TT_SEMICOLON,
+    TT_COMMA,
 } TokenType;
 
 typedef struct {
-    // fixme(marco): use a string with size brotha
-    char *lexme;
-    int lexme_len;
+    String_View lexme;
     TokenType type;
     TokenLoc loc;
 } Token;
@@ -54,8 +53,7 @@ void tokenize_identifier(Tokenizer *tokenizer, char *contents, size_t len_conten
     // fixme(marco): this may fail if the
     // tokenizer reads the indefier until the end of the contents
     Token token = {
-        .lexme = (char *)(contents + *cursor),
-        .lexme_len = start - *cursor,
+        .lexme = sv_from_parts(contents + *cursor, start - *cursor),
         .type = TT_IDENT,
         .loc = {
             .filename = "",
@@ -78,8 +76,7 @@ void tokenize_number(Tokenizer *tokenizer, char *contents, size_t len_contents, 
     // fixme(marco): this may fail if the
     // tokenizer reads the indefier until the end of the contents
     Token token = {
-        .lexme = (char *)(contents + *cursor),
-        .lexme_len = start - *cursor,
+        .lexme = sv_from_parts(contents + *cursor, start - *cursor),
         .type = TT_INT_NUMBER,
         .loc = {
             .filename = "",
@@ -105,8 +102,7 @@ void tokenize_string(Tokenizer *tokenizer, char *contents, size_t len_contents, 
     start += 1; // advance "
 
     Token token = {
-        .lexme = (char *)(contents + *cursor),
-        .lexme_len = start - *cursor,
+        .lexme = sv_from_parts(contents + *cursor, start - *cursor),
         .type = TT_STRING,
         .loc = {
             .filename = "",
@@ -145,10 +141,23 @@ bool tokenizer_lexme(Tokenizer *tokenizer, char *contents, size_t len_contents) 
             cursor += 1;
             col += 1;
         } break;
+        case ',': {
+            Token token = {
+                .lexme = sv_from_parts(contents + cursor, 1),
+                .type = TT_COMMA,
+                .loc = {
+                    .filename = "",
+                    .col = col,
+                    .row = row,
+                },
+            };
+            da_append(&tokenizer->tokens, token);
+            cursor += 1;
+            col += 1;
+        } break;
         case '(': {
             Token token = {
-                .lexme = (char *)(contents + cursor),
-                .lexme_len = 1,
+                .lexme = sv_from_parts(contents + cursor, 1),
                 .type = TT_OPEN_PAREN,
                 .loc = {
                     .filename = "",
@@ -162,8 +171,7 @@ bool tokenizer_lexme(Tokenizer *tokenizer, char *contents, size_t len_contents) 
         } break;
         case ')': {
             Token token = {
-                .lexme = (char *)(contents + cursor),
-                .lexme_len = 1,
+                .lexme = sv_from_parts(contents + cursor, 1),
                 .type = TT_CLOSE_PAREN,
                 .loc = {
                     .filename = "",
@@ -177,8 +185,7 @@ bool tokenizer_lexme(Tokenizer *tokenizer, char *contents, size_t len_contents) 
         } break;
         case '*': {
             Token token = {
-                .lexme = (char *)(contents + cursor),
-                .lexme_len = 1,
+                .lexme = sv_from_parts(contents + cursor, 1),
                 .type = TT_ASTERISK,
                 .loc = {
                     .filename = "",
@@ -192,8 +199,7 @@ bool tokenizer_lexme(Tokenizer *tokenizer, char *contents, size_t len_contents) 
         } break;
         case '{': {
             Token token = {
-                .lexme = (char *)(contents + cursor),
-                .lexme_len = 1,
+                .lexme = sv_from_parts(contents + cursor, 1),
                 .type = TT_OPEN_CURLY,
                 .loc = {
                     .filename = "",
@@ -207,8 +213,7 @@ bool tokenizer_lexme(Tokenizer *tokenizer, char *contents, size_t len_contents) 
         } break;
         case '}': {
             Token token = {
-                .lexme = (char *)(contents + cursor),
-                .lexme_len = 1,
+                .lexme = sv_from_parts(contents + cursor, 1),
                 .type = TT_CLOSE_CURLY,
                 .loc = {
                     .filename = "",
@@ -222,8 +227,7 @@ bool tokenizer_lexme(Tokenizer *tokenizer, char *contents, size_t len_contents) 
         } break;
         case ';': {
             Token token = {
-                .lexme = (char *)(contents + cursor),
-                .lexme_len = 1,
+                .lexme = sv_from_parts(contents + cursor, 1),
                 .type = TT_SEMICOLON,
                 .loc = {
                     .filename = "",
@@ -237,8 +241,7 @@ bool tokenizer_lexme(Tokenizer *tokenizer, char *contents, size_t len_contents) 
         } break;
         case '[': {
             Token token = {
-                .lexme = (char *)(contents + cursor),
-                .lexme_len = 1,
+                .lexme = sv_from_parts(contents + cursor, 1),
                 .type = TT_OPEN_SQ_BRACKET,
                 .loc = {
                     .filename = "",
@@ -252,8 +255,7 @@ bool tokenizer_lexme(Tokenizer *tokenizer, char *contents, size_t len_contents) 
         } break;
         case ']': {
             Token token = {
-                .lexme = (char *)(contents + cursor),
-                .lexme_len = 1,
+                .lexme = sv_from_parts(contents + cursor, 1),
                 .type = TT_CLOSE_SQ_BRACKET,
                 .loc = {
                     .filename = "",
@@ -275,7 +277,7 @@ bool tokenizer_lexme(Tokenizer *tokenizer, char *contents, size_t len_contents) 
                 tokenize_number(tokenizer, contents, len_contents, &cursor, &col, &row);
             } else {
                 for (int i = 0; i < tokenizer->tokens.count; i += 1) {
-                    printf("[%d] %.*s\n", i, (int)tokenizer->tokens.items[i].lexme_len, tokenizer->tokens.items[i].lexme);
+                    printf("[%d] %.*s\n", i, SV_Arg(tokenizer->tokens.items[i].lexme));
                 }
                 return false;
             }
@@ -288,6 +290,10 @@ bool tokenizer_lexme(Tokenizer *tokenizer, char *contents, size_t len_contents) 
 typedef enum {
     NT_FN_DECL,
     NT_BLOCK,
+    NT_EXPR_STMT,
+    NT_LIT_STRING,
+    NT_IDENT_EXPR,
+    NT_FN_CALL_EXPR,
 } NodeType;
 
 typedef struct Node Node;
@@ -301,11 +307,9 @@ typedef struct {
 typedef struct {
     Node *base;
     // fixme(marco): This should be a type expression
-    char *typename;
-    int typename_len;
+    String_View typename;
 
-    char *name;
-    int name_len;
+    String_View name;
 
     // fixme(marco): add parameters;
     Node *block;
@@ -316,6 +320,27 @@ typedef struct {
     Nodes nodes;
 } BlockStmt;
 
+typedef struct {
+    Node *base;
+    Node *expr;
+} ExprStmt;
+
+typedef struct {
+    Node *base;
+    String_View lit;
+} LitStringExpr;
+
+typedef struct {
+    Node *base;
+    String_View lit;
+} IdentExpr;
+
+typedef struct {
+    Node *base;
+    String_View name;
+    Nodes args;
+} FnCallExpr;
+
 struct Node {
     NodeType type;
     TokenLoc start;
@@ -323,6 +348,10 @@ struct Node {
     union {
         FnDeclStmt *fn_decl_stmt;
         BlockStmt *block_stmt;
+        ExprStmt *expr_stmt;
+        LitStringExpr *lit_string_expr;
+        IdentExpr *ident_expr;
+        FnCallExpr *fn_call_expr;
     };
 };
 
@@ -366,6 +395,9 @@ bool expect_and_get(Parser *p, TokenType tt, Token *token) {
     return true;
 }
 
+ParseResult parser_parse_stmt(Parser *);
+ParseResult parser_parse_expr(Parser *);
+
 ParseResult parser_parse_block_stmt(Parser *p) {
     Token start;
     if (!expect_and_get(p, TT_OPEN_CURLY, &start)) {
@@ -373,7 +405,13 @@ ParseResult parser_parse_block_stmt(Parser *p) {
         return INVALID_RES;
     }
 
-    // fixme: actually parse the body;
+    Nodes stmts = {0};
+    while (parser_get_token(p).type != TT_CLOSE_CURLY) {
+        ParseResult res = parser_parse_stmt(p);
+        if (!res.ok)
+            return INVALID_RES;
+        da_append(&stmts, res.node);
+    }
 
     Token end;
     if (!expect_and_get(p, TT_CLOSE_CURLY, &end)) {
@@ -387,9 +425,142 @@ ParseResult parser_parse_block_stmt(Parser *p) {
     node->end = end.loc;
     BlockStmt *stmt = temp_alloc(sizeof(BlockStmt));
     stmt->base = node;
-    stmt->nodes = (Nodes){0};
+    stmt->nodes = stmts;
     node->block_stmt = stmt;
 
+    return PARSE_SUCC(node);
+}
+
+ParseResult parser_parse_lit_string_expr(Parser *p) {
+    Token start;
+    if (!expect_and_get(p, TT_STRING, &start)) {
+        printf("expect string literal when parse a string literal.\n");
+        return INVALID_RES;
+    }
+
+    Node *node = temp_alloc(sizeof(Node));
+    node->type = NT_LIT_STRING;
+    node->start = start.loc;
+    node->end = (TokenLoc){node->start.col + start.lexme.count, node->start.row, ""};
+    LitStringExpr *lit = temp_alloc(sizeof(LitStringExpr));
+    lit->base = node;
+    lit->lit = start.lexme;
+    node->lit_string_expr = lit;
+    return PARSE_SUCC(node);
+}
+
+ParseResult parser_parse_ident_expr(Parser *p) {
+    Token start;
+    if (!expect_and_get(p, TT_IDENT, &start)) {
+        printf("expected identifier\n");
+        return INVALID_RES;
+    }
+
+    Node *node = temp_alloc(sizeof(Node));
+    node->type = NT_IDENT_EXPR;
+    node->start = start.loc;
+    node->end = (TokenLoc){node->start.col + start.lexme.count, node->start.row, ""};
+    IdentExpr *expr = temp_alloc(sizeof(IdentExpr));
+    expr->base = node;
+    expr->lit = start.lexme;
+    node->ident_expr = expr;
+    return PARSE_SUCC(node);
+}
+
+ParseResult parser_parse_primary(Parser *p) {
+    Token token = parser_get_token(p);
+    switch (token.type) {
+    case TT_STRING:
+        return parser_parse_lit_string_expr(p);
+    case TT_IDENT:
+        return parser_parse_ident_expr(p);
+    default:
+        printf("invalid token as primary: `%.*s`\n", SV_Arg(token.lexme));
+        return INVALID_RES;
+    }
+    return INVALID_RES;
+}
+
+ParseResult parser_parse_fn_call_expr(Parser *p, Node *lhs) {
+    if (!expect(p, TT_OPEN_PAREN)) {
+        Token token = parser_get_token(p);
+        printf("expected `(` got `%.*s`\n", SV_Arg(token.lexme));
+        return INVALID_RES;
+    }
+
+    Nodes args = {0};
+    while (parser_get_token(p).type != TT_CLOSE_PAREN) {
+        ParseResult res = parser_parse_expr(p);
+        if (!res.ok)
+            return INVALID_RES;
+        da_append(&args, res.node);
+        if (parser_get_token(p).type == TT_COMMA)
+            expect(p, TT_COMMA);
+    }
+
+    Token end;
+    if (!expect_and_get(p, TT_CLOSE_PAREN, &end)) {
+        printf("expected `(` got `%.*s`\n", SV_Arg(end.lexme));
+        return INVALID_RES;
+    }
+
+    Node *node = temp_alloc(sizeof(Node));
+    node->type = NT_FN_CALL_EXPR;
+    node->start = lhs->start;
+    node->end = end.loc;
+    FnCallExpr *expr = temp_alloc(sizeof(FnCallExpr));
+    expr->base = node;
+    assert(lhs->type == NT_IDENT_EXPR);
+    expr->name = lhs->ident_expr->lit;
+    expr->args = args;
+    node->fn_call_expr = expr;
+    return PARSE_SUCC(node);
+}
+
+ParseResult parser_parse_expr(Parser *p) {
+
+    ParseResult res = parser_parse_primary(p);
+    if (!res.ok) {
+        return INVALID_RES;
+    }
+
+    Node *lhs = res.node;
+
+    Token token = parser_get_token(p);
+    switch (token.type) {
+    case TT_OPEN_PAREN: {
+        res = parser_parse_fn_call_expr(p, lhs);
+        if (!res.ok)
+            return INVALID_RES;
+        lhs = res.node;
+    } break;
+    default:
+        break;
+    }
+
+    // fixme: this is breakable when something like binops are implemented
+    return PARSE_SUCC(lhs);
+}
+
+ParseResult parser_parse_expr_stmt(Parser *p) {
+    ParseResult res = parser_parse_expr(p);
+    if (!res.ok)
+        return INVALID_RES;
+
+    Token end;
+    if (!expect_and_get(p, TT_SEMICOLON, &end)) {
+        printf("expected `;` but got `%.*s`\n", SV_Arg(end.lexme));
+        return INVALID_RES;
+    }
+
+    Node *node = temp_alloc(sizeof(Node));
+    node->type = NT_EXPR_STMT;
+    node->start = res.node->start;
+    node->end = end.loc;
+    ExprStmt *stmt = temp_alloc(sizeof(ExprStmt));
+    stmt->base = node;
+    stmt->expr = res.node;
+    node->expr_stmt = stmt;
     return PARSE_SUCC(node);
 }
 
@@ -400,8 +571,7 @@ ParseResult parser_parse_stmt(Parser *p) {
         return parser_parse_block_stmt(p);
     } break;
     default:
-        printf("Invalid token\n");
-        return INVALID_RES;
+        return parser_parse_expr_stmt(p);
     }
 
     return INVALID_RES;
@@ -445,9 +615,7 @@ ParseResult parser_parse_fn_decl_stmt(Parser *p) {
     FnDeclStmt *fn = temp_alloc(sizeof(FnDeclStmt));
     fn->base = node;
     fn->typename = type.lexme;
-    fn->typename_len = type.lexme_len;
     fn->name = name.lexme;
-    fn->name_len = name.lexme_len;
     fn->block = res.node;
     node->fn_decl_stmt = fn;
     return PARSE_SUCC(node);
@@ -461,7 +629,7 @@ ParseResult parser_parse_top_level_stmt(Parser *p) {
         if (peek.type == TT_OPEN_PAREN) {
             return parser_parse_fn_decl_stmt(p);
         } else {
-            printf("Invalid token: %.*s\n", token.lexme_len, token.lexme);
+            printf("Invalid token: %.*s\n", SV_Arg(token.lexme));
             return INVALID_RES;
         }
     } break;
@@ -488,14 +656,152 @@ void print_node(Node *node) {
     case NT_FN_DECL: {
         FnDeclStmt *stmt = node->fn_decl_stmt;
         printf("FnDeclStmt:\n");
-        printf("   type: %.*s\n", stmt->typename_len, stmt->typename);
-        printf("   name: %.*s\n", stmt->name_len, stmt->name);
+        printf("   type: %.*s\n", SV_Arg(stmt->typename));
+        printf("   name: %.*s\n", SV_Arg(stmt->name));
         print_node(stmt->block);
     } break;
     case NT_BLOCK: {
+        BlockStmt *block = node->block_stmt;
         printf("BlockStmt:\n");
+        for (int i = 0; i < block->nodes.count; i += 1) {
+            print_node(block->nodes.items[i]);
+        }
+    } break;
+    case NT_EXPR_STMT: {
+        print_node(node->expr_stmt->expr);
+    } break;
+    case NT_LIT_STRING: {
+        LitStringExpr *expr = node->lit_string_expr;
+        printf("LitStringExpr: `%.*s`\n", SV_Arg(expr->lit));
+    } break;
+    case NT_IDENT_EXPR: {
+        IdentExpr *expr = node->ident_expr;
+        printf("IdentExpr: `%.*s`\n", SV_Arg(expr->lit));
+    } break;
+    case NT_FN_CALL_EXPR: {
+        FnCallExpr *expr = node->fn_call_expr;
+        printf("FnCallExpr: `%.*s`\n", SV_Arg(expr->name));
+        for (int i = 0; i < expr->args.count; i += 1) {
+            print_node(expr->args.items[i]);
+        }
     } break;
     }
+}
+
+typedef enum {
+    OT_NONE,
+    OT_LABEL,
+    OT_CALL,
+    OT_PUSH_STR,
+} OpType;
+
+typedef struct {
+    OpType type;
+    int operand;
+} Op;
+
+typedef struct {
+    Op *items;
+    int capacity;
+    int count;
+} Ops;
+
+typedef struct {
+    String_View *items;
+    int capacity;
+    int count;
+} StringTable;
+
+void ir_generate_for_node(Node *node, Ops *ops, StringTable *strings) {
+    switch (node->type) {
+    case NT_FN_DECL: {
+        Op op = {
+            .type = OT_LABEL,
+            .operand = strings->count,
+        };
+        da_append(strings, node->fn_decl_stmt->name);
+        da_append(ops, op);
+        ir_generate_for_node(node->fn_decl_stmt->block, ops, strings);
+        // fixme(marco): generate end of function
+    } break;
+    case NT_BLOCK: {
+        for (int i = 0; i < node->block_stmt->nodes.count; i += 1) {
+            ir_generate_for_node(node->block_stmt->nodes.items[i], ops, strings);
+        }
+    } break;
+    case NT_EXPR_STMT: {
+        ir_generate_for_node(node->expr_stmt->expr, ops, strings);
+    } break;
+    case NT_LIT_STRING: {
+        Op op = {
+            .type = OT_PUSH_STR,
+            .operand = strings->count,
+        };
+        da_append(strings, node->lit_string_expr->lit);
+        da_append(ops, op);
+    } break;
+    case NT_IDENT_EXPR: {
+        printf("NT_IDENT_EXPR\n");
+    } break;
+    case NT_FN_CALL_EXPR: {
+        for (int i = 0; i < node->fn_call_expr->args.count; i += 1) {
+            ir_generate_for_node(node->fn_call_expr->args.items[i], ops, strings);
+        }
+        Op op = {
+            .type = OT_CALL,
+            .operand = strings->count,
+        };
+        da_append(strings, node->fn_call_expr->name);
+        da_append(ops, op);
+    } break;
+    }
+}
+
+bool ir_generate(Parser p) {
+    Ops ops = {0};
+    StringTable strings = {0};
+
+    for (int i = 0; i < p.nodes.count; i += 1) {
+        Node *node = p.nodes.items[i];
+        ir_generate_for_node(node, &ops, &strings);
+    }
+
+    for (int i = 0; i < ops.count; i += 1) {
+        Op op = ops.items[i];
+        printf("[%d] type:(%d) operand:(%d) as_string:(%.*s)\n", i, op.type, op.operand, SV_Arg(strings.items[op.operand]));
+    }
+
+    printf("Running IR:\n");
+
+    int stack[1024] = {0};
+    int sp = 1024;
+
+    for (int i = 0; i < ops.count; i += 1) {
+        Op op = ops.items[i];
+        switch (op.type) {
+        case OT_LABEL:
+            break;
+        case OT_CALL: {
+            String_View name = strings.items[op.operand];
+            if (sv_eq(name, sv_from_cstr("puts"))) {
+                int argop = stack[sp];
+                sp += 1;
+                String_View arg = strings.items[argop];
+                printf("%.*s\n", SV_Arg(arg));
+            } else {
+                printf("Find fncall by name\n");
+            }
+        } break;
+        case OT_PUSH_STR: {
+            stack[--sp] = op.operand;
+        } break;
+        case OT_NONE: {
+            return false;
+        }
+        }
+    }
+
+    return true;
 }
 
 int main(int argc, char **argv) {
@@ -541,7 +847,7 @@ int main(int argc, char **argv) {
         return 1;
     }
     for (int i = 0; i < tokenizer.tokens.count; i += 1) {
-        printf("[%d] %.*s\n", i, (int)tokenizer.tokens.items[i].lexme_len, tokenizer.tokens.items[i].lexme);
+        printf("[%d] %.*s\n", i, SV_Arg(tokenizer.tokens.items[i].lexme));
     }
     fclose(f);
 
@@ -555,6 +861,11 @@ int main(int argc, char **argv) {
     for (int i = 0; i < parser.nodes.count; i += 1) {
         Node *node = parser.nodes.items[i];
         print_node(node);
+    }
+
+    if (!ir_generate(parser)) {
+        printf("Failed to generate ir\n");
+        return 1;
     }
 
     return 0;
