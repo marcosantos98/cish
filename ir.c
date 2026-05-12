@@ -54,10 +54,12 @@ bool ir_generate(Parser p) {
         ir_generate_for_node(node, &ops, &strings);
     }
 
+#if DEBUG
     for (int i = 0; i < ops.count; i += 1) {
         Op op = ops.items[i];
         printf("[%d] type:(%d) operand:(%d) as_string:(%.*s)\n", i, op.type, op.operand, SV_Arg(strings.items[op.operand]));
     }
+#endif
 
     printf("Running IR:\n");
 

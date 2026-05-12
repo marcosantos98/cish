@@ -59,10 +59,9 @@ int main(int argc, char **argv) {
         return 0;
 
     char *prog = *argv++;
-    printf("Program name: %s\n", prog);
+    (void)prog;
 
     char *filename = *argv++;
-    printf("Filename: %s\n", filename);
 
     FILE *f = fopen(filename, "r");
     if (!f) {
@@ -87,17 +86,18 @@ int main(int argc, char **argv) {
     size_t read = fread(contents, sizeof(uint8_t), size, f);
     assert((long)read == size);
 
-    printf("Contents\n");
-    printf("%.*s\n", (int)size, (char *)contents);
-
     Lexer lexer = {0};
     if (!lexer_lex(&lexer, contents, size)) {
         printf("Failed to tokenize.\n");
         return 1;
     }
+
+#if DEBUG
     for (int i = 0; i < lexer.tokens.count; i += 1) {
         printf("[%d] %.*s\n", i, SV_Arg(lexer.tokens.items[i].lexme));
     }
+#endif
+
     fclose(f);
 
     Parser parser = {0};
@@ -107,10 +107,12 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+#if DEBUG
     for (int i = 0; i < parser.nodes.count; i += 1) {
         Node *node = parser.nodes.items[i];
         print_node(node);
     }
+#endif
 
     if (!ir_generate(parser)) {
         printf("Failed to generate ir\n");
