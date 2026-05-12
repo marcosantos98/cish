@@ -98,6 +98,14 @@ ParseResult parser_parse_lit_string_expr(Parser *p) {
     LitStringExpr *lit = temp_alloc(sizeof(LitStringExpr));
     lit->base = node;
     lit->lit = start.lexme;
+    if (!sv_chop_prefix(&lit->lit, sv_from_cstr("\""))) {
+        printf("Failed to unquote string\n");
+        return INVALID_RES;
+    }
+    if (!sv_chop_suffix(&lit->lit, sv_from_cstr("\""))) {
+        printf("Failed to unquote string\n");
+        return INVALID_RES;
+    }
     node->lit_string_expr = lit;
     return PARSE_SUCC(node);
 }
