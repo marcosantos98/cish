@@ -3,7 +3,7 @@ LITERAL_STR = '"' [a-z] '"'
 
 TOP_LEVEL_STMT = FN_DECL_STMT;
 
-TYPE_EXPR = IDENT, { '*', '[]' };
+TYPE_EXPR = IDENT, { '*', '[]', '...' };
 
 FN_DECL_STMT = TYPE_EXPR IDENT '(' [FN_PARAM] ')' BLOCK_STMT;
 FN_PARAM = TYPE_EXPR IDENT
