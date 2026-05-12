@@ -27,6 +27,7 @@ typedef enum {
     TT_ASTERISK,
     TT_SEMICOLON,
     TT_COMMA,
+    TT_EOF,
 } TokenType;
 
 typedef struct {
@@ -50,8 +51,6 @@ void tokenize_identifier(Tokenizer *tokenizer, char *contents, size_t len_conten
     while (isalnum(contents[start]) && start < len_contents)
         start += 1;
 
-    // fixme(marco): this may fail if the
-    // tokenizer reads the indefier until the end of the contents
     Token token = {
         .lexme = sv_from_parts(contents + *cursor, start - *cursor),
         .type = TT_IDENT,
@@ -73,8 +72,6 @@ void tokenize_number(Tokenizer *tokenizer, char *contents, size_t len_contents, 
     while (isdigit(contents[start]) && start < len_contents)
         start += 1;
 
-    // fixme(marco): this may fail if the
-    // tokenizer reads the indefier until the end of the contents
     Token token = {
         .lexme = sv_from_parts(contents + *cursor, start - *cursor),
         .type = TT_INT_NUMBER,
@@ -91,13 +88,25 @@ void tokenize_number(Tokenizer *tokenizer, char *contents, size_t len_contents, 
     *cursor = start;
 }
 
-void tokenize_string(Tokenizer *tokenizer, char *contents, size_t len_contents, size_t *cursor, size_t *col, size_t *row) {
+bool tokenize_string(Tokenizer *tokenizer, char *contents, size_t len_contents, size_t *cursor, size_t *col, size_t *row) {
     size_t start = *cursor;
     start += 1; // advance "
 
-    // fixme: this will break if the string has escaped \"
-    while (contents[start] != '"' && start < len_contents)
+    while (start < len_contents) {
+        char at = contents[start];
+        if (at == '\\' && contents[start + 1] == '\"') {
+            start += 2;
+        }
+        if (contents[start] == '\"')
+            break;
         start += 1;
+    }
+
+    if (start >= len_contents) {
+        printf("unfinished string. reached end of file.\n");
+        printf("string start at: %s:%zu:%zu.\n", "filename.cish", *row, *col);
+        return false;
+    }
 
     start += 1; // advance "
 
@@ -115,6 +124,8 @@ void tokenize_string(Tokenizer *tokenizer, char *contents, size_t len_contents, 
 
     *col += start - *cursor;
     *cursor = start;
+
+    return true;
 }
 
 bool tokenizer_lexme(Tokenizer *tokenizer, char *contents, size_t len_contents) {
@@ -268,7 +279,9 @@ bool tokenizer_lexme(Tokenizer *tokenizer, char *contents, size_t len_contents) 
             col += 1;
         } break;
         case '"': {
-            tokenize_string(tokenizer, contents, len_contents, &cursor, &col, &row);
+            if (!tokenize_string(tokenizer, contents, len_contents, &cursor, &col, &row)) {
+                return false;
+            }
         } break;
         default:
             if (isalpha(at)) {
@@ -283,6 +296,17 @@ bool tokenizer_lexme(Tokenizer *tokenizer, char *contents, size_t len_contents) 
             }
         }
     }
+
+    Token token = {
+        .lexme = sv_from_cstr("EOF"),
+        .type = TT_EOF,
+        .loc = {
+            .filename = "",
+            .col = col,
+            .row = row,
+        },
+    };
+    da_append(&tokenizer->tokens, token);
 
     return true;
 }
@@ -372,9 +396,16 @@ Token parser_get_token(Parser *p) {
     return p->tokens.items[p->cursor];
 }
 
-// fixme(marco) be sure that the offset is in bounds;
-Token parser_get_token_off(Parser *p, int off) {
-    return p->tokens.items[p->cursor + off];
+// is end of file or end of tokens
+bool is_eof_or_eot(Parser *p) {
+    return p->cursor >= p->tokens.count || parser_get_token(p).type == TT_EOF;
+}
+
+bool parser_get_token_off(Parser *p, int off, Token *token) {
+    if (p->cursor + off >= p->tokens.count)
+        return false;
+    *token = p->tokens.items[p->cursor + off];
+    return true;
 }
 
 bool expect(Parser *p, TokenType tt) {
@@ -406,7 +437,7 @@ ParseResult parser_parse_block_stmt(Parser *p) {
     }
 
     Nodes stmts = {0};
-    while (parser_get_token(p).type != TT_CLOSE_CURLY) {
+    while (parser_get_token(p).type != TT_CLOSE_CURLY && !is_eof_or_eot(p)) {
         ParseResult res = parser_parse_stmt(p);
         if (!res.ok)
             return INVALID_RES;
@@ -489,7 +520,7 @@ ParseResult parser_parse_fn_call_expr(Parser *p, Node *lhs) {
     }
 
     Nodes args = {0};
-    while (parser_get_token(p).type != TT_CLOSE_PAREN) {
+    while (parser_get_token(p).type != TT_CLOSE_PAREN && !is_eof_or_eot(p)) {
         ParseResult res = parser_parse_expr(p);
         if (!res.ok)
             return INVALID_RES;
@@ -625,7 +656,11 @@ ParseResult parser_parse_top_level_stmt(Parser *p) {
     Token token = parser_get_token(p);
     switch (token.type) {
     case TT_IDENT: {
-        Token peek = parser_get_token_off(p, 2);
+        Token peek;
+        if (!parser_get_token_off(p, 2, &peek)) {
+            printf("something went wrong: Reached end of file.\n");
+            return INVALID_RES;
+        }
         if (peek.type == TT_OPEN_PAREN) {
             return parser_parse_fn_decl_stmt(p);
         } else {
@@ -642,7 +677,7 @@ ParseResult parser_parse_top_level_stmt(Parser *p) {
 }
 
 bool parser_parse(Parser *p) {
-    while (p->cursor < p->tokens.count) {
+    while (!is_eof_or_eot(p)) {
         ParseResult res = parser_parse_top_level_stmt(p);
         if (!res.ok)
             return false;
