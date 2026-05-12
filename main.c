@@ -329,13 +329,21 @@ typedef struct {
 } Nodes;
 
 typedef struct {
-    Node *base;
-    // fixme(marco): This should be a type expression
-    String_View typename;
-
     String_View name;
+    Node *type;
+} FnParam;
 
-    // fixme(marco): add parameters;
+typedef struct {
+    FnParam *items;
+    int count;
+    int capacity;
+} FnParams;
+
+typedef struct {
+    Node *base;
+    Node *typename;
+    String_View name;
+    FnParams parameters;
     Node *block;
 } FnDeclStmt;
 
@@ -428,6 +436,20 @@ bool expect_and_get(Parser *p, TokenType tt, Token *token) {
 
 ParseResult parser_parse_stmt(Parser *);
 ParseResult parser_parse_expr(Parser *);
+ParseResult parser_parse_ident_expr(Parser *);
+
+ParseResult parser_parse_type_expr(Parser *p) {
+    Token token = parser_get_token(p);
+    switch (token.type) {
+    case TT_IDENT:
+        return parser_parse_ident_expr(p);
+    default:
+        printf("Invalid token as type expression:" SV_Fmt "\n", SV_Arg(token.lexme));
+        return INVALID_RES;
+    }
+
+    return INVALID_RES;
+}
 
 ParseResult parser_parse_block_stmt(Parser *p) {
     Token start;
@@ -609,11 +631,10 @@ ParseResult parser_parse_stmt(Parser *p) {
 }
 
 ParseResult parser_parse_fn_decl_stmt(Parser *p) {
-    Token type;
-    if (!expect_and_get(p, TT_IDENT, &type)) {
-        printf("Failed to parse type of function declaration.\n");
+
+    ParseResult type_res = parser_parse_type_expr(p);
+    if (!type_res.ok)
         return INVALID_RES;
-    }
 
     Token name;
     if (!expect_and_get(p, TT_IDENT, &name)) {
@@ -626,28 +647,46 @@ ParseResult parser_parse_fn_decl_stmt(Parser *p) {
         return INVALID_RES;
     }
 
-    // fixme(marco): here we should parse the function parameters
+    FnParams params = {0};
+    while (!is_eof_or_eot(p) && parser_get_token(p).type != TT_CLOSE_PAREN) {
+        ParseResult type_expr = parser_parse_type_expr(p);
+        if (!type_expr.ok)
+            return INVALID_RES;
+        Token name;
+        if (!expect_and_get(p, TT_IDENT, &name)) {
+            printf("expected name after type parameter.\n");
+            return INVALID_RES;
+        }
+        FnParam param = {
+            .name = name.lexme,
+            .type = type_expr.node,
+        };
+        da_append(&params, param);
+        if (parser_get_token(p).type == TT_COMMA)
+            expect(p, TT_COMMA);
+    }
 
     if (!expect(p, TT_CLOSE_PAREN)) {
         printf("Expected `(` after function name.\n");
         return INVALID_RES;
     }
 
-    ParseResult res = parser_parse_stmt(p);
-    if (!res.ok) {
+    ParseResult block_res = parser_parse_stmt(p);
+    if (!block_res.ok) {
         printf("Failed to parse function body.\n");
         return INVALID_RES;
     }
 
     Node *node = temp_alloc(sizeof(Node));
     node->type = NT_FN_DECL;
-    node->start = type.loc;
-    node->end = res.node->end;
+    node->start = type_res.node->start;
+    node->end = block_res.node->end;
     FnDeclStmt *fn = temp_alloc(sizeof(FnDeclStmt));
     fn->base = node;
-    fn->typename = type.lexme;
+    fn->typename = type_res.node;
     fn->name = name.lexme;
-    fn->block = res.node;
+    fn->block = block_res.node;
+    fn->parameters = params;
     node->fn_decl_stmt = fn;
     return PARSE_SUCC(node);
 }
@@ -690,9 +729,13 @@ void print_node(Node *node) {
     switch (node->type) {
     case NT_FN_DECL: {
         FnDeclStmt *stmt = node->fn_decl_stmt;
-        printf("FnDeclStmt:\n");
-        printf("   type: %.*s\n", SV_Arg(stmt->typename));
-        printf("   name: %.*s\n", SV_Arg(stmt->name));
+        printf("FnDeclStmt: name:(" SV_Fmt ")\n", SV_Arg(stmt->name));
+        print_node(stmt->typename);
+        for (int i = 0; i < stmt->parameters.count; i += 1) {
+            FnParam param = stmt->parameters.items[i];
+            print_node(param.type);
+            printf("name:(" SV_Fmt ")\n", SV_Arg(param.name));
+        }
         print_node(stmt->block);
     } break;
     case NT_BLOCK: {
