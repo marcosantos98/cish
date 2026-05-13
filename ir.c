@@ -45,13 +45,11 @@ void ir_generate_for_node(Node *node, Ops *ops, StringTable *strings) {
     }
 }
 
-bool ir_generate(Parser p) {
-    Ops ops = {0};
-    StringTable strings = {0};
+bool ir_generate(IRGenerator *ir_gen, Parser p) {
 
     for (int i = 0; i < p.nodes.count; i += 1) {
         Node *node = p.nodes.items[i];
-        ir_generate_for_node(node, &ops, &strings);
+        ir_generate_for_node(node, &ir_gen->ops, &ir_gen->strings);
     }
 
 #if DEBUG
@@ -60,36 +58,6 @@ bool ir_generate(Parser p) {
         printf("[%d] type:(%d) operand:(%d) as_string:(%.*s)\n", i, op.type, op.operand, SV_Arg(strings.items[op.operand]));
     }
 #endif
-
-    printf("Running IR:\n");
-
-    int stack[1024] = {0};
-    int sp = 1024;
-
-    for (int i = 0; i < ops.count; i += 1) {
-        Op op = ops.items[i];
-        switch (op.type) {
-        case OT_LABEL:
-            break;
-        case OT_CALL: {
-            String_View name = strings.items[op.operand];
-            if (sv_eq(name, sv_from_cstr("puts"))) {
-                int argop = stack[sp];
-                sp += 1;
-                String_View arg = strings.items[argop];
-                printf("%.*s\n", SV_Arg(arg));
-            } else {
-                printf("Find fncall by name\n");
-            }
-        } break;
-        case OT_PUSH_STR: {
-            stack[--sp] = op.operand;
-        } break;
-        case OT_NONE: {
-            return false;
-        }
-        }
-    }
 
     return true;
 }

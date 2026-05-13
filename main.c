@@ -8,6 +8,7 @@
 #include "include/ir.h"
 #include "include/lexer.h"
 #include "include/parser.h"
+#include "include/vm.h"
 
 #define NOB_IMPLEMENTATION
 #include "nob.h"
@@ -56,12 +57,22 @@ void print_node(Node *node) {
 int main(int argc, char **argv) {
 
     if (argc < 2)
-        return 0;
+        return 1;
 
     char *prog = *argv++;
     (void)prog;
 
     char *filename = *argv++;
+
+    argc -= 2;
+    printf("%d\n", argc);
+
+    bool run_IR = false;
+    for (int i = 0; i < argc; i += 1) {
+        if (strncmp(argv[i], "-run-ir", 7) == 0) {
+            run_IR = true;
+        }
+    }
 
     FILE *f = fopen(filename, "r");
     if (!f) {
@@ -114,9 +125,17 @@ int main(int argc, char **argv) {
     }
 #endif
 
-    if (!ir_generate(parser)) {
+    IRGenerator ir_gen = {0};
+    if (!ir_generate(&ir_gen, parser)) {
         printf("Failed to generate ir\n");
         return 1;
+    }
+
+    if (run_IR) {
+        if (!vm_run_ir(ir_gen.ops, ir_gen.strings)) {
+            printf("Failed to run IR.\n");
+            return 1;
+        }
     }
 
     return 0;
