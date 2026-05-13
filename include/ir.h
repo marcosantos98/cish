@@ -27,6 +27,11 @@ typedef struct {
     int count;
 } StringTable;
 
-bool ir_generate(Parser p);
+typedef struct {
+    Ops ops;
+    StringTable strings;
+} IRGenerator;
+
+bool ir_generate(IRGenerator *irgen, Parser p);
 
 #endif // __IR_H__

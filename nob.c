@@ -7,7 +7,7 @@ int main(int argc, char **argv) {
 
     Nob_Cmd cmd = {0};
     cmd_append(&cmd, "cc");
-    cmd_append(&cmd, "-o", "main", "main.c", "lexer.c", "parser.c", "ir.c");
+    cmd_append(&cmd, "-o", "main", "main.c", "lexer.c", "parser.c", "ir.c", "vm.c", "asm_backend.c");
     cmd_append(&cmd, "-Wextra");
     cmd_append(&cmd, "-Wall");
     cmd_append(&cmd, "-Werror");
