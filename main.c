@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "include/asm_backend.h"
 #include "include/ir.h"
 #include "include/lexer.h"
 #include "include/parser.h"
@@ -65,7 +66,6 @@ int main(int argc, char **argv) {
     char *filename = *argv++;
 
     argc -= 2;
-    printf("%d\n", argc);
 
     bool run_IR = false;
     for (int i = 0; i < argc; i += 1) {
@@ -136,7 +136,20 @@ int main(int argc, char **argv) {
             printf("Failed to run IR.\n");
             return 1;
         }
+        return 0;
     }
+
+    if (!asm_nasm_x86_64_gnu_linux(ir_gen)) {
+        return 1;
+    }
+
+    Nob_Cmd cmd = {0};
+    cmd_append(&cmd, "nasm", "-felf64", "out.asm");
+    if (!cmd_run(&cmd))
+        return 1;
+    cmd_append(&cmd, "ld", "out.o", "-o", "out");
+    if (!cmd_run(&cmd))
+        return 1;
 
     return 0;
 }
