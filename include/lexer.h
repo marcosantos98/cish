@@ -24,6 +24,7 @@ typedef enum {
     TT_ASTERISK,
     TT_SEMICOLON,
     TT_COMMA,
+    TT_PLUS,
     TT_EOF,
 } TokenType;
 

@@ -230,6 +230,20 @@ bool lexer_lex(Lexer *lexer, char *contents, size_t len_contents) {
             cursor += 1;
             col += 1;
         } break;
+        case '+': {
+            Token token = {
+                .lexme = sv_from_parts(contents + cursor, 1),
+                .type = TT_PLUS,
+                .loc = {
+                    .filename = "",
+                    .col = col,
+                    .row = row,
+                },
+            };
+            da_append(&lexer->tokens, token);
+            cursor += 1;
+            col += 1;
+        } break;
         case '"': {
             if (!lex_string(lexer, contents, len_contents, &cursor, &col, &row)) {
                 return false;
