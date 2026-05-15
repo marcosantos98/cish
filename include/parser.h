@@ -11,6 +11,8 @@ typedef enum {
     NT_LIT_STRING,
     NT_IDENT_EXPR,
     NT_FN_CALL_EXPR,
+    NT_LIT_NUMBER,
+    NT_BIN_EXPR,
 } NodeType;
 
 typedef struct Node Node;
@@ -58,6 +60,11 @@ typedef struct {
 typedef struct {
     Node *base;
     String_View lit;
+} LitNumberExpr;
+
+typedef struct {
+    Node *base;
+    String_View lit;
 } IdentExpr;
 
 typedef struct {
@@ -65,6 +72,13 @@ typedef struct {
     String_View name;
     Nodes args;
 } FnCallExpr;
+
+typedef struct {
+    Node *base;
+    Node *lhs;
+    Token operand;
+    Node *rhs;
+} BinExpr;
 
 struct Node {
     NodeType type;
@@ -77,6 +91,8 @@ struct Node {
         LitStringExpr *lit_string_expr;
         IdentExpr *ident_expr;
         FnCallExpr *fn_call_expr;
+        LitNumberExpr *lit_number_expr;
+        BinExpr *bin_expr;
     };
 };
 

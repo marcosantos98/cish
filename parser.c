@@ -69,6 +69,13 @@ bool parser_get_token_off(Parser *p, int off, Token *token) {
     return true;
 }
 
+bool parser_advance(Parser *p) {
+    if (p->cursor + 1 >= p->tokens.count)
+        return false;
+    p->cursor += 1;
+    return true;
+}
+
 bool expect(Parser *p, TokenType tt) {
     bool ok = parser_get_token(p).type == tt;
     if (!ok)
@@ -89,6 +96,7 @@ bool expect_and_get(Parser *p, TokenType tt, Token *token) {
 
 ParseResult parser_parse_stmt(Parser *);
 ParseResult parser_parse_expr(Parser *);
+ParseResult parser_parse_expr_with_precedence(Parser *, int);
 ParseResult parser_parse_ident_expr(Parser *);
 
 ParseResult parser_parse_type_expr(Parser *p) {
@@ -134,6 +142,26 @@ ParseResult parser_parse_block_stmt(Parser *p) {
     stmt->nodes = stmts;
     node->block_stmt = stmt;
 
+    return PARSE_SUCC(node);
+}
+
+ParseResult parser_parse_lit_number_expr(Parser *p) {
+
+    Token start;
+    if (!expect_and_get(p, TT_INT_NUMBER, &start)) {
+        printf("expect number literal when parse a number literal.\n");
+        return INVALID_RES;
+    }
+
+    Node *node = temp_alloc(sizeof(Node));
+    node->type = NT_LIT_NUMBER;
+    node->start = start.loc;
+    node->end = (TokenLoc){node->start.col + start.lexme.count, node->start.row, ""};
+    LitNumberExpr *lit = temp_alloc(sizeof(LitNumberExpr));
+    lit->base = node;
+    // note(marco): storing the actual representation, later use atoi to convert into int
+    lit->lit = start.lexme;
+    node->lit_number_expr = lit;
     return PARSE_SUCC(node);
 }
 
@@ -188,6 +216,8 @@ ParseResult parser_parse_primary(Parser *p) {
         return parser_parse_lit_string_expr(p);
     case TT_IDENT:
         return parser_parse_ident_expr(p);
+    case TT_INT_NUMBER:
+        return parser_parse_lit_number_expr(p);
     default:
         printf("invalid token as primary: `%.*s`\n", SV_Arg(token.lexme));
         return INVALID_RES;
@@ -231,7 +261,62 @@ ParseResult parser_parse_fn_call_expr(Parser *p, Node *lhs) {
     return PARSE_SUCC(node);
 }
 
-ParseResult parser_parse_expr(Parser *p) {
+int parser_get_precedence(TokenType tt) {
+    switch (tt) {
+    case TT_ASTERISK:
+        return 20;
+    case TT_PLUS:
+        return 10;
+    default:
+        return 0;
+    }
+    return 0;
+}
+
+ParseResult parser_try_parse_rhs(Parser *p, Node *lhs, int operand_precedence) {
+    Token token = parser_get_token(p);
+    if (token.type != TT_PLUS && token.type != TT_ASTERISK)
+        return PARSE_SUCC(lhs);
+
+    while (true) {
+        int precedence = parser_get_precedence(token.type);
+        if (precedence < operand_precedence)
+            return PARSE_SUCC(lhs);
+
+        Token operand = token;
+        if (!parser_advance(p)) {
+            printf("Reached end of file\n");
+            return INVALID_RES;
+        }
+
+        ParseResult rhs = parser_parse_expr_with_precedence(p, precedence);
+        if (!rhs.ok) {
+            return INVALID_RES;
+        }
+        int new_precedence = parser_get_precedence(token.type);
+        if (new_precedence > precedence) {
+            ParseResult newlhs = parser_try_parse_rhs(p, rhs.node, new_precedence);
+            if (!newlhs.ok) {
+                return INVALID_RES;
+            }
+            lhs = newlhs.node;
+        }
+
+        Node *node = temp_alloc(sizeof(Node));
+        node->type = NT_BIN_EXPR;
+        node->start = lhs->start;
+        node->end = rhs.node->end;
+        BinExpr *bin = temp_alloc(sizeof(BinExpr));
+        bin->base = node;
+        bin->lhs = lhs;
+        bin->operand = operand;
+        bin->rhs = rhs.node;
+        node->bin_expr = bin;
+        return PARSE_SUCC(node);
+    }
+}
+
+ParseResult parser_parse_expr_with_precedence(Parser *p, int precedence) {
 
     ParseResult res = parser_parse_primary(p);
     if (!res.ok) {
@@ -253,7 +338,11 @@ ParseResult parser_parse_expr(Parser *p) {
     }
 
     // fixme: this is breakable when something like binops are implemented
-    return PARSE_SUCC(lhs);
+    return parser_try_parse_rhs(p, lhs, precedence);
+}
+
+ParseResult parser_parse_expr(Parser *p) {
+    return parser_parse_expr_with_precedence(p, 0);
 }
 
 ParseResult parser_parse_expr_stmt(Parser *p) {
