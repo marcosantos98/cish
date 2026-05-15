@@ -1,7 +1,39 @@
 #include "include/ir.h"
+#include "include/lexer.h"
+#include "include/parser.h"
+#include <assert.h>
+#include <stdlib.h>
 
 void ir_generate_for_node(Node *node, Ops *ops, StringTable *strings) {
     switch (node->type) {
+    case NT_BIN_EXPR: {
+        ir_generate_for_node(node->bin_expr->lhs, ops, strings);
+        ir_generate_for_node(node->bin_expr->rhs, ops, strings);
+        if (node->bin_expr->operand.type == TT_PLUS) {
+            Op op = {
+                .type = OT_PLUS,
+                .operand = 0,
+            };
+            da_append(ops, op);
+        } else if (node->bin_expr->operand.type == TT_ASTERISK) {
+            Op op = {
+                .type = OT_MULT,
+                .operand = 0,
+            };
+            da_append(ops, op);
+        } else {
+            printf(SV_Fmt "\n", SV_Arg(node->bin_expr->operand.lexme));
+            assert(false && "unimplement operand");
+        }
+    } break;
+    case NT_LIT_NUMBER: {
+        Op op = {
+            .type = OT_PUSH_INT,
+            // note(marco): if it doesnt break now, it may break later
+            .operand = atoi(node->lit_number_expr->lit.data),
+        };
+        da_append(ops, op);
+    } break;
     case NT_FN_DECL: {
         Op op = {
             .type = OT_LABEL,

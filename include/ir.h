@@ -8,6 +8,9 @@ typedef enum {
     OT_LABEL,
     OT_CALL,
     OT_PUSH_STR,
+    OT_PUSH_INT,
+    OT_PLUS,
+    OT_MULT,
 } OpType;
 
 typedef struct {

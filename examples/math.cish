@@ -1,0 +1,5 @@
+int param(int a){}
+
+int main() {
+    putd(3 + 5 * 2);
+}

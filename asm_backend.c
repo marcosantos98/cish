@@ -2,6 +2,7 @@
 #include "include/ir.h"
 #include "include/parser.h"
 
+#include <assert.h>
 #include <stdio.h>
 
 void asm_gen_exit_syscall(FILE *output, int exit_code) {
@@ -31,6 +32,10 @@ bool asm_nasm_x86_64_gnu_linux(IRGenerator ir) {
     for (int i = 0; i < ir.ops.count; i += 1) {
         Op op = ir.ops.items[i];
         switch (op.type) {
+        case OT_PLUS:
+            assert(false && "implement PLUS in ASM asm_backend");
+        case OT_MULT:
+            assert(false && "implement MULT in ASM asm_backend");
         case OT_LABEL:
             break;
         case OT_CALL: {
@@ -45,6 +50,10 @@ bool asm_nasm_x86_64_gnu_linux(IRGenerator ir) {
         case OT_PUSH_STR: {
             fprintf(output, "mov rsi, str_%d\n", op.operand);
             fprintf(output, "mov rdx, str_%d_len\n", op.operand);
+        } break;
+        case OT_PUSH_INT: {
+            // fixme(marco): dont hardcode the register
+            fprintf(output, "mov rax, %d\n", op.operand);
         } break;
         case OT_NONE:
             return false;
