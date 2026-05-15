@@ -94,5 +94,6 @@ typedef struct {
 #define INVALID_RES (ParseResult){false, NULL};
 
 bool parser_parse(Parser *p);
+void parser_print_node(Node *);
 
 #endif // __PARSER_H__

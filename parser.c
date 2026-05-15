@@ -1,4 +1,57 @@
 #include "include/parser.h"
+#include "include/lexer.h"
+#include <assert.h>
+
+void parser_print_node(Node *node) {
+    switch (node->type) {
+    case NT_BIN_EXPR: {
+        printf("BinExpr:\n");
+        parser_print_node(node->bin_expr->lhs);
+        printf(SV_Fmt "\n", SV_Arg(node->bin_expr->operand.lexme));
+        parser_print_node(node->bin_expr->rhs);
+    } break;
+    case NT_FN_DECL: {
+        FnDeclStmt *stmt = node->fn_decl_stmt;
+        printf("FnDeclStmt: name:(" SV_Fmt ")\n", SV_Arg(stmt->name));
+        parser_print_node(stmt->typename);
+        for (int i = 0; i < stmt->parameters.count; i += 1) {
+            FnParam param = stmt->parameters.items[i];
+            parser_print_node(param.type);
+            printf("name:(" SV_Fmt ")\n", SV_Arg(param.name));
+        }
+        parser_print_node(stmt->block);
+    } break;
+    case NT_BLOCK: {
+        BlockStmt *block = node->block_stmt;
+        printf("BlockStmt:\n");
+        for (int i = 0; i < block->nodes.count; i += 1) {
+            parser_print_node(block->nodes.items[i]);
+        }
+    } break;
+    case NT_EXPR_STMT: {
+        parser_print_node(node->expr_stmt->expr);
+    } break;
+    case NT_LIT_STRING: {
+        LitStringExpr *expr = node->lit_string_expr;
+        printf("LitStringExpr: `%.*s`\n", SV_Arg(expr->lit));
+    } break;
+    case NT_IDENT_EXPR: {
+        IdentExpr *expr = node->ident_expr;
+        printf("IdentExpr: `%.*s`\n", SV_Arg(expr->lit));
+    } break;
+    case NT_FN_CALL_EXPR: {
+        FnCallExpr *expr = node->fn_call_expr;
+        printf("FnCallExpr: `%.*s`\n", SV_Arg(expr->name));
+        for (int i = 0; i < expr->args.count; i += 1) {
+            parser_print_node(expr->args.items[i]);
+        }
+    } break;
+    case NT_LIT_NUMBER: {
+        LitNumberExpr *expr = node->lit_number_expr;
+        printf("LitNumberExpr: `%.*s`\n", SV_Arg(expr->lit));
+    } break;
+    }
+}
 
 Token parser_get_token(Parser *p) {
     return p->tokens.items[p->cursor];
