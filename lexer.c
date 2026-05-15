@@ -241,9 +241,7 @@ bool lexer_lex(Lexer *lexer, char *contents, size_t len_contents) {
             } else if (isdigit(at)) {
                 lex_number(lexer, contents, len_contents, &cursor, &col, &row);
             } else {
-                for (int i = 0; i < lexer->tokens.count; i += 1) {
-                    printf("[%d] %.*s\n", i, SV_Arg(lexer->tokens.items[i].lexme));
-                }
+                printf("unimplemented token: %c\n", at);
                 return false;
             }
         }
