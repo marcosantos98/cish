@@ -13,6 +13,7 @@ typedef enum {
     NT_FN_CALL_EXPR,
     NT_LIT_NUMBER,
     NT_BIN_EXPR,
+    NT_VAR_DECL_STMT,
 } NodeType;
 
 typedef struct Node Node;
@@ -22,6 +23,13 @@ typedef struct {
     int count;
     int capacity;
 } Nodes;
+
+typedef struct {
+    Node *base;
+    Node *type;
+    String_View name;
+    Node *decl;
+} VarDeclStmt;
 
 typedef struct {
     String_View name;
@@ -93,6 +101,7 @@ struct Node {
         FnCallExpr *fn_call_expr;
         LitNumberExpr *lit_number_expr;
         BinExpr *bin_expr;
+        VarDeclStmt *var_decl_stmt;
     };
 };
 
