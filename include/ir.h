@@ -11,12 +11,25 @@ typedef enum {
     OT_PUSH_INT,
     OT_PLUS,
     OT_MULT,
+    OT_ALLOC,
+    OT_STORE,
+    OT_LOAD,
 } OpType;
 
+typedef struct Op Op;
+
 typedef struct {
+    int size;
+    int name_link;
+} OpAlloc;
+
+struct Op {
     OpType type;
-    int operand;
-} Op;
+    union {
+        int operand;
+        OpAlloc alloc;
+    };
+};
 
 typedef struct {
     Op *items;
