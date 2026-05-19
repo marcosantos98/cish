@@ -22,3 +22,9 @@ Arrays are one of the most sugar coated topics in language design, it will proba
 `int[] xs = {...}` when a initializer list is available so we can infer the size. This should be internalized as a slice{data,len}.
 `int[2] xs = {1, 2}` 
 
+## varibles:
+
+Variables won't change much from the original `C`, it may get some sugaring later;
+Const may be added, and undefined varibables won't work;
+
+`int a = 0;`
