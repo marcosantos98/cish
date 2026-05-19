@@ -14,3 +14,4 @@ cc -o nob nob.c
 ## Honorable mentions:
 
 - [nob.h by tsoding](https://github.com/tsoding/nob.h)
+- [ht.h by tsoding](https://github.com/tsoding/ht.h)

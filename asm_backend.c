@@ -32,10 +32,13 @@ bool asm_nasm_x86_64_gnu_linux(IRGenerator ir) {
     for (int i = 0; i < ir.ops.count; i += 1) {
         Op op = ir.ops.items[i];
         switch (op.type) {
+        case OT_STORE:
+        case OT_ALLOC:
         case OT_PLUS:
-            assert(false && "implement PLUS in ASM asm_backend");
+        case OT_LOAD:
         case OT_MULT:
-            assert(false && "implement MULT in ASM asm_backend");
+            assert(false && "implement in ASM asm_backend");
+            break;
         case OT_LABEL:
             break;
         case OT_CALL: {

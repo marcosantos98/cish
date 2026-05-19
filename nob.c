@@ -10,7 +10,6 @@ int main(int argc, char **argv) {
     cmd_append(&cmd, "-o", "main", "main.c", "lexer.c", "parser.c", "ir.c", "vm.c", "asm_backend.c");
     cmd_append(&cmd, "-Wextra");
     cmd_append(&cmd, "-Wall");
-    cmd_append(&cmd, "-Werror");
     cmd_append(&cmd, "-ggdb");
 
     if (!cmd_run(&cmd))

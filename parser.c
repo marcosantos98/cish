@@ -4,6 +4,12 @@
 
 void parser_print_node(Node *node) {
     switch (node->type) {
+    case NT_VAR_DECL_STMT: {
+        VarDeclStmt *stmt = node->var_decl_stmt;
+        printf("VarDeclStmt: (%.*s)\n", SV_Arg(stmt->name));
+        parser_print_node(stmt->type);
+        parser_print_node(stmt->decl);
+    } break;
     case NT_BIN_EXPR: {
         printf("BinExpr:\n");
         parser_print_node(node->bin_expr->lhs);
@@ -367,14 +373,65 @@ ParseResult parser_parse_expr_stmt(Parser *p) {
     return PARSE_SUCC(node);
 }
 
+ParseResult parser_parse_var_decl_stmt(Parser *p) {
+    ParseResult type = parser_parse_type_expr(p);
+    if (!type.ok) {
+        return INVALID_RES;
+    }
+
+    Token name;
+    if (!expect_and_get(p, TT_IDENT, &name)) {
+        printf("expected identifier after the variable type, but got `%.*s`.\n", SV_Arg(name.lexme));
+        return INVALID_RES;
+    }
+
+    if (!expect(p, TT_EQ)) {
+        printf("expect `=` after variable name\n");
+        return INVALID_RES;
+    }
+
+    ParseResult decl = parser_parse_expr(p);
+    if (!decl.ok) {
+        return INVALID_RES;
+    }
+
+    Token end;
+    if (!expect_and_get(p, TT_SEMICOLON, &end)) {
+        printf("expected `;` at the end of a variable declaration, but got `%.*s`\n", SV_Arg(end.lexme));
+        return INVALID_RES;
+    }
+
+    Node *node = temp_alloc(sizeof(Node));
+    node->type = NT_VAR_DECL_STMT;
+    node->start = type.node->start;
+    node->end = end.loc;
+    VarDeclStmt *stmt = temp_alloc(sizeof(VarDeclStmt));
+    stmt->base = node;
+    stmt->type = type.node;
+    stmt->name = name.lexme;
+    stmt->decl = decl.node;
+    node->var_decl_stmt = stmt;
+
+    return PARSE_SUCC(node);
+}
+
 ParseResult parser_parse_stmt(Parser *p) {
     Token token = parser_get_token(p);
     switch (token.type) {
     case TT_OPEN_CURLY: {
         return parser_parse_block_stmt(p);
     } break;
-    default:
-        return parser_parse_expr_stmt(p);
+    default: {
+        Token peek;
+        if (!parser_get_token_off(p, 2, &peek)) {
+            return INVALID_RES;
+        }
+        if (peek.type == TT_EQ) {
+            return parser_parse_var_decl_stmt(p);
+        } else {
+            return parser_parse_expr_stmt(p);
+        }
+    }
     }
 
     return INVALID_RES;

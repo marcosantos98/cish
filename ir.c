@@ -6,6 +6,26 @@
 
 void ir_generate_for_node(Node *node, Ops *ops, StringTable *strings) {
     switch (node->type) {
+    case NT_VAR_DECL_STMT: {
+        VarDeclStmt *stmt = node->var_decl_stmt;
+        int name_idx = strings->count;
+        // fixme(marco): don't hardcode the size;
+        Op op = {
+            .type = OT_ALLOC,
+            .alloc = {
+                .size = 4,
+                .name_link = name_idx,
+            },
+        };
+        da_append(strings, stmt->name);
+        da_append(ops, op);
+        ir_generate_for_node(stmt->decl, ops, strings);
+        op = (Op){
+            .type = OT_STORE,
+            .operand = name_idx,
+        };
+        da_append(ops, op);
+    } break;
     case NT_BIN_EXPR: {
         ir_generate_for_node(node->bin_expr->lhs, ops, strings);
         ir_generate_for_node(node->bin_expr->rhs, ops, strings);
@@ -61,7 +81,22 @@ void ir_generate_for_node(Node *node, Ops *ops, StringTable *strings) {
         da_append(ops, op);
     } break;
     case NT_IDENT_EXPR: {
-        printf("NT_IDENT_EXPR\n");
+        IdentExpr *expr = node->ident_expr;
+        int idx = -1;
+        for (int i = 0; i < strings->count; i += 1) {
+            if (sv_eq(expr->lit, strings->items[i])) {
+                idx = i;
+                break;
+            }
+        }
+
+        assert(idx >= 0 && "couldnt find name");
+
+        Op op = {
+            .type = OT_LOAD,
+            .operand = idx,
+        };
+        da_append(ops, op);
     } break;
     case NT_FN_CALL_EXPR: {
         for (int i = 0; i < node->fn_call_expr->args.count; i += 1) {
@@ -77,6 +112,32 @@ void ir_generate_for_node(Node *node, Ops *ops, StringTable *strings) {
     }
 }
 
+char *ir_op_type_to_cstr(OpType type) {
+    switch (type) {
+    case OT_NONE:
+        return "OT_NONE";
+    case OT_LABEL:
+        return "OT_LABEL";
+    case OT_CALL:
+        return "OT_CALL";
+    case OT_PUSH_STR:
+        return "OT_PUSH_STR";
+    case OT_PUSH_INT:
+        return "OT_PUSH_INT";
+    case OT_PLUS:
+        return "OT_PLUS";
+    case OT_MULT:
+        return "OT_MULT";
+    case OT_ALLOC:
+        return "OT_ALLOC";
+    case OT_STORE:
+        return "OT_STORE";
+    case OT_LOAD:
+        return "OT_LOAD";
+    }
+    return "";
+}
+
 bool ir_generate(IRGenerator *ir_gen, Parser p) {
 
     for (int i = 0; i < p.nodes.count; i += 1) {
@@ -84,10 +145,14 @@ bool ir_generate(IRGenerator *ir_gen, Parser p) {
         ir_generate_for_node(node, &ir_gen->ops, &ir_gen->strings);
     }
 
-#if DEBUG
-    for (int i = 0; i < ops.count; i += 1) {
-        Op op = ops.items[i];
-        printf("[%d] type:(%d) operand:(%d) as_string:(%.*s)\n", i, op.type, op.operand, SV_Arg(strings.items[op.operand]));
+#if 1
+    printf("Strings:\n");
+    for (int i = 0; i < ir_gen->strings.count; i += 1) {
+        printf("[%d] %.*s\n", i, SV_Arg(ir_gen->strings.items[i]));
+    }
+    for (int i = 0; i < ir_gen->ops.count; i += 1) {
+        Op op = ir_gen->ops.items[i];
+        printf("[%d] type:(%s) operand:(%d) as_string:(%.*s)\n", i, ir_op_type_to_cstr(op.type), op.operand, SV_Arg(ir_gen->strings.items[op.operand]));
     }
 #endif
 
