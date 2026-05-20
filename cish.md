@@ -28,3 +28,18 @@ Variables won't change much from the original `C`, it may get some sugaring late
 Const may be added, and undefined varibables won't work;
 
 `int a = 0;`
+
+## control flow - if:
+
+```c
+if (condition) {} 
+if (condition) expression;
+```
+
+```cish
+if condition {}
+if (condition) {}
+
+// maybe later
+if condition than expression;
+```

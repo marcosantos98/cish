@@ -16,6 +16,9 @@ BLOCK_STMT = '{' [ STMT ] '}';
 
 VAR_DECL_STMT = TYPE_EXPR IDENT '=' EXPR ';' ;
 
+IF_STMT = 'if' EXPR BLOCK_STMT { ELSE_EXPR } ;
+ELSE_EXPR = 'else' [IF_STMT, BLOCK_STMT] ;
+
 EXPR_STMT = EXPR ';'
 
 FN_CALL_EXPR = IDENT '(' [ EXPR ] ')'
