@@ -14,6 +14,8 @@ typedef enum {
     OT_ALLOC,
     OT_STORE,
     OT_LOAD,
+    OT_JUMP,
+    OT_JUMP_IF,
 } OpType;
 
 typedef struct Op Op;
@@ -23,11 +25,17 @@ typedef struct {
     int name_link;
 } OpAlloc;
 
+typedef struct {
+    int true_index;
+    int false_index;
+} OpJump;
+
 struct Op {
     OpType type;
     union {
         int operand;
         OpAlloc alloc;
+        OpJump jump;
     };
 };
 

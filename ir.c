@@ -6,6 +6,45 @@
 
 void ir_generate_for_node(Node *node, Ops *ops, StringTable *strings) {
     switch (node->type) {
+    case NT_IF_STMT: {
+        Op if_label = {
+            .type = OT_LABEL,
+            .operand = 0,
+        };
+        da_append(ops, if_label);
+        ir_generate_for_node(node->if_stmt->condition, ops, strings);
+        Op jump = {
+            .type = OT_JUMP_IF,
+        };
+        int jmpidx = ops->count;
+        da_append(ops, jump);
+        ir_generate_for_node(node->if_stmt->block, ops, strings);
+
+        Op if_block_jmp = {
+            .type = OT_JUMP,
+        };
+        int if_block_jmp_idx = ops->count;
+        da_append(ops, if_block_jmp);
+
+        if (node->if_stmt->_else != NULL) {
+            Op else_label = {
+                .type = OT_LABEL,
+                .operand = 0,
+            };
+            ops->items[jmpidx].jump.false_index = ops->count;
+            da_append(ops, else_label);
+            ir_generate_for_node(node->if_stmt->_else, ops, strings);
+            ops->items[if_block_jmp_idx].operand = ops->count;
+        } else {
+            Op end_label = {
+                .type = OT_LABEL,
+                .operand = 0,
+            };
+            ops->items[jmpidx].jump.false_index = ops->count;
+            ops->items[if_block_jmp_idx].operand = ops->count;
+            da_append(ops, end_label);
+        }
+    } break;
     case NT_VAR_DECL_STMT: {
         VarDeclStmt *stmt = node->var_decl_stmt;
         int name_idx = strings->count;
@@ -81,6 +120,24 @@ void ir_generate_for_node(Node *node, Ops *ops, StringTable *strings) {
         da_append(ops, op);
     } break;
     case NT_IDENT_EXPR: {
+
+        String_View lit = node->ident_expr->lit;
+        if (sv_eq(lit, sv_from_cstr("true"))) {
+            Op op = {
+                .type = OT_PUSH_INT,
+                .operand = 1,
+            };
+            da_append(ops, op);
+            break;
+        } else if (sv_eq(lit, sv_from_cstr("false"))) {
+            Op op = {
+                .type = OT_PUSH_INT,
+                .operand = 0,
+            };
+            da_append(ops, op);
+            break;
+        }
+
         IdentExpr *expr = node->ident_expr;
         int idx = -1;
         for (int i = 0; i < strings->count; i += 1) {
@@ -134,8 +191,12 @@ char *ir_op_type_to_cstr(OpType type) {
         return "OT_STORE";
     case OT_LOAD:
         return "OT_LOAD";
+    case OT_JUMP:
+        return "OT_JUMP";
+    case OT_JUMP_IF:
+        return "OT_JUMP_IF";
     }
-    return "";
+    return "Unknown";
 }
 
 bool ir_generate(IRGenerator *ir_gen, Parser p) {
@@ -145,14 +206,18 @@ bool ir_generate(IRGenerator *ir_gen, Parser p) {
         ir_generate_for_node(node, &ir_gen->ops, &ir_gen->strings);
     }
 
-#if 1
+#if 0
     printf("Strings:\n");
     for (int i = 0; i < ir_gen->strings.count; i += 1) {
         printf("[%d] %.*s\n", i, SV_Arg(ir_gen->strings.items[i]));
     }
     for (int i = 0; i < ir_gen->ops.count; i += 1) {
         Op op = ir_gen->ops.items[i];
-        printf("[%d] type:(%s) operand:(%d) as_string:(%.*s)\n", i, ir_op_type_to_cstr(op.type), op.operand, SV_Arg(ir_gen->strings.items[op.operand]));
+        if (op.type == OT_JUMP_IF) {
+            printf("[%d] type:(%s) true:(%d) false:(%d) as_string:(%.*s)\n", i, ir_op_type_to_cstr(op.type), op.jump.true_index, op.jump.false_index, SV_Arg(ir_gen->strings.items[op.operand]));
+        } else {
+            printf("[%d] type:(%s) operand:(%d) as_string:(%.*s)\n", i, ir_op_type_to_cstr(op.type), op.operand, SV_Arg(ir_gen->strings.items[op.operand]));
+        }
     }
 #endif
 
