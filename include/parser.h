@@ -14,6 +14,7 @@ typedef enum {
     NT_LIT_NUMBER,
     NT_BIN_EXPR,
     NT_VAR_DECL_STMT,
+    NT_IF_STMT,
 } NodeType;
 
 typedef struct Node Node;
@@ -23,6 +24,13 @@ typedef struct {
     int count;
     int capacity;
 } Nodes;
+
+typedef struct {
+    Node *base;
+    Node *condition;
+    Node *block;
+    Node *_else;
+} IfStmt;
 
 typedef struct {
     Node *base;
@@ -102,6 +110,7 @@ struct Node {
         LitNumberExpr *lit_number_expr;
         BinExpr *bin_expr;
         VarDeclStmt *var_decl_stmt;
+        IfStmt *if_stmt;
     };
 };
 

@@ -56,6 +56,16 @@ void parser_print_node(Node *node) {
         LitNumberExpr *expr = node->lit_number_expr;
         printf("LitNumberExpr: `%.*s`\n", SV_Arg(expr->lit));
     } break;
+    case NT_IF_STMT: {
+        IfStmt *stmt = node->if_stmt;
+        printf("IfStmt\n");
+        parser_print_node(stmt->condition);
+        parser_print_node(stmt->block);
+        if (stmt->_else != NULL) {
+            printf("else_ block:\n");
+            parser_print_node(stmt->_else);
+        }
+    } break;
     }
 }
 
@@ -128,8 +138,10 @@ ParseResult parser_parse_block_stmt(Parser *p) {
     Nodes stmts = {0};
     while (parser_get_token(p).type != TT_CLOSE_CURLY && !is_eof_or_eot(p)) {
         ParseResult res = parser_parse_stmt(p);
-        if (!res.ok)
+        if (!res.ok) {
+            printf("Failed to parse stmt inside block at %d:%d\n", start.loc.row, start.loc.col);
             return INVALID_RES;
+        }
         da_append(&stmts, res.node);
     }
 
@@ -343,7 +355,6 @@ ParseResult parser_parse_expr_with_precedence(Parser *p, int precedence) {
         break;
     }
 
-    // fixme: this is breakable when something like binops are implemented
     return parser_try_parse_rhs(p, lhs, precedence);
 }
 
@@ -415,6 +426,49 @@ ParseResult parser_parse_var_decl_stmt(Parser *p) {
     return PARSE_SUCC(node);
 }
 
+ParseResult parser_parse_if_stmt(Parser *p) {
+    Token start;
+    if (!expect_and_get(p, TT_IDENT, &start)) {
+        printf("expected `if` keyword.\n");
+        return INVALID_RES;
+    }
+
+    ParseResult condition = parser_parse_expr(p);
+    if (!condition.ok) {
+        printf("Failed to parse condition of `if` statment\n");
+        return INVALID_RES;
+    }
+
+    ParseResult block = parser_parse_stmt(p);
+    if (!block.ok) {
+        printf("failed to parse `if` block\n");
+        return INVALID_RES;
+    }
+
+    ParseResult _else = INVALID_RES;
+
+    Token token = parser_get_token(p);
+    if (token.type == TT_IDENT && sv_eq(token.lexme, sv_from_cstr("else"))) {
+        expect(p, TT_IDENT);
+        _else = parser_parse_stmt(p);
+        if (!_else.ok) {
+            return INVALID_RES;
+        }
+    }
+
+    Node *node = temp_alloc(sizeof(Node));
+    node->type = NT_IF_STMT;
+    node->start = start.loc;
+    node->end = _else.ok ? _else.node->end : block.node->end;
+    IfStmt *stmt = temp_alloc(sizeof(IfStmt));
+    stmt->base = node;
+    stmt->condition = condition.node;
+    stmt->block = block.node;
+    stmt->_else = _else.node;
+    node->if_stmt = stmt;
+    return PARSE_SUCC(node);
+}
+
 ParseResult parser_parse_stmt(Parser *p) {
     Token token = parser_get_token(p);
     switch (token.type) {
@@ -424,10 +478,13 @@ ParseResult parser_parse_stmt(Parser *p) {
     default: {
         Token peek;
         if (!parser_get_token_off(p, 2, &peek)) {
+            printf("Couldn't peek that far.\n");
             return INVALID_RES;
         }
         if (peek.type == TT_EQ) {
             return parser_parse_var_decl_stmt(p);
+        } else if (sv_eq(token.lexme, sv_from_cstr("if"))) {
+            return parser_parse_if_stmt(p);
         } else {
             return parser_parse_expr_stmt(p);
         }
